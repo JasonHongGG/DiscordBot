@@ -263,7 +263,7 @@ async def shutdown(ctx: commands.Context):
 
 
 # ==================== 主程式 ====================
-def main():
+def DiscordBotAppStart():
     """主函數"""
     if not DISCORD_TOKEN:
         logger.error("錯誤: 未找到 DISCORD_TOKEN")
@@ -280,4 +280,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    DiscordBotAppStart()

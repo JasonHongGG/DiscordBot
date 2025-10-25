@@ -13,6 +13,11 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 BOT_PREFIX = "!"  # 指令前綴
 BOT_OWNER_ID = int(os.getenv("BOT_OWNER_ID", "0"))  # 機器人擁有者 ID
 
+# Lavalink 設定（可用 .env 覆蓋）
+LAVALINK_HOST = os.getenv("LAVALINK_HOST", "127.0.0.1")
+LAVALINK_PORT = int(os.getenv("LAVALINK_PORT", "2444"))
+LAVALINK_PASSWORD = os.getenv("LAVALINK_PASSWORD", "123")
+
 # 顏色設定（用於 Embed）
 class Colors:
     SUCCESS = 0x00ff00  # 綠色

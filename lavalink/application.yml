@@ -1,0 +1,13 @@
+server:
+  port: 2444
+lavalink:
+  server:
+    password: "123"
+    sources:
+      youtube: false
+plugins:
+  - dependency: "dev.lavalink.youtube:youtube-plugin:1.15.0"
+    repository: "https://maven.lavalink.dev/releases"
+logging:
+  file:
+    path: ./logs/
