@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 虛擬環境
+venv/
+env/
+ENV/
+.venv
+
+# Discord Bot
+.env
+*.db
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 資料庫
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+
+# 日誌
+logs/*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 暫存檔
+*.tmp
+*.bak
+*.cache
+*.md
