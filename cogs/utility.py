@@ -4,7 +4,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from datetime import datetime
+from datetime import datetime, timezone
 import platform
 import psutil
 from typing import Optional
@@ -145,11 +145,50 @@ class Utility(commands.Cog):
             discord.Status.dnd: "🔴 勿擾",
             discord.Status.offline: "⚫ 離線"
         }
+        
+        # 顯示總體狀態
+        status_text = status_emoji.get(member.status, "❓ 未知")
+        
+        # 添加平台詳細狀態
+        platforms = []
+        if member.desktop_status != discord.Status.offline:
+            platforms.append(f"💻 桌面: {status_emoji.get(member.desktop_status, '❓')}")
+        if member.mobile_status != discord.Status.offline:
+            platforms.append(f"📱 手機: {status_emoji.get(member.mobile_status, '❓')}")
+        if member.web_status != discord.Status.offline:
+            platforms.append(f"🌐 網頁: {status_emoji.get(member.web_status, '❓')}")
+        
+        if platforms:
+            status_text += "\n" + "\n".join(platforms)
+        
         embed.add_field(
             name="📡 狀態",
-            value=status_emoji.get(member.status, "❓ 未知"),
-            inline=True
+            value=status_text,
+            inline=False
         )
+        
+        # 活動資訊
+        if member.activities:
+            activities = []
+            for activity in member.activities:
+                if isinstance(activity, discord.Streaming):
+                    activities.append(f"🎥 直播: {activity.name}")
+                elif isinstance(activity, discord.Game):
+                    activities.append(f"🎮 遊戲: {activity.name}")
+                elif isinstance(activity, discord.Spotify):
+                    activities.append(f"🎵 Spotify: {activity.title} - {activity.artist}")
+                elif isinstance(activity, discord.CustomActivity):
+                    if activity.name:
+                        activities.append(f"💬 自訂狀態: {activity.name}")
+                elif isinstance(activity, discord.Activity):
+                    activities.append(f"📝 活動: {activity.name}")
+            
+            if activities:
+                embed.add_field(
+                    name="🎯 當前活動",
+                    value="\n".join(activities),
+                    inline=False
+                )
         
         await ctx.send(embed=embed)
     
@@ -161,7 +200,7 @@ class Utility(commands.Cog):
         member = member or ctx.author
         
         embed = create_embed(
-            title=f"🖼️ {member.display_name} 的頭像",
+            title=f"{member.display_name} 的頭像",
             color=Colors.INFO
         )
         embed.set_image(url=member.display_avatar.url)
@@ -212,7 +251,8 @@ class Utility(commands.Cog):
         
         # 運行時間
         if hasattr(self.bot, 'start_time'):
-            uptime_seconds = int((datetime.now(datetime.UTC) - self.bot.start_time).total_seconds())
+            # 計算運行時間
+            uptime_seconds = int((datetime.now() - self.bot.start_time).total_seconds())
             uptime = format_time(uptime_seconds)
         else:
             uptime = "未知"

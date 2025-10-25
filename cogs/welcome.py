@@ -23,13 +23,10 @@ class Welcome(commands.Cog):
     async def on_member_join(self, member: discord.Member):
         """成員加入事件"""
         # 獲取歡迎頻道
-        settings = db.execute(
-            "SELECT welcome_channel_id, autorole_id FROM guild_settings WHERE guild_id = ?",
-            (member.guild.id,)
-        )
+        settings = db.get_guild_settings(member.guild.id)
         
-        if settings and settings[0]['welcome_channel_id']:
-            channel = member.guild.get_channel(settings[0]['welcome_channel_id'])
+        if settings.get('welcome_channel_id'):
+            channel = member.guild.get_channel(settings['welcome_channel_id'])
             if channel:
                 embed = create_embed(
                     title=f"{Emojis.SUCCESS} 歡迎加入!",
@@ -46,8 +43,8 @@ class Welcome(commands.Cog):
                 await channel.send(embed=embed)
         
         # 自動角色
-        if settings and settings[0]['autorole_id']:
-            role = member.guild.get_role(settings[0]['autorole_id'])
+        if settings.get('autorole_id'):
+            role = member.guild.get_role(settings['autorole_id'])
             if role:
                 try:
                     await member.add_roles(role, reason="自動角色")
@@ -60,13 +57,10 @@ class Welcome(commands.Cog):
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
         """成員離開事件"""
-        settings = db.execute(
-            "SELECT farewell_channel_id FROM guild_settings WHERE guild_id = ?",
-            (member.guild.id,)
-        )
+        settings = db.get_guild_settings(member.guild.id)
         
-        if settings and settings[0]['farewell_channel_id']:
-            channel = member.guild.get_channel(settings[0]['farewell_channel_id'])
+        if settings.get('farewell_channel_id'):
+            channel = member.guild.get_channel(settings['farewell_channel_id'])
             if channel:
                 embed = create_embed(
                     title=f"{Emojis.WARNING} 成員離開",
@@ -84,14 +78,7 @@ class Welcome(commands.Cog):
     @app_commands.describe(channel="歡迎訊息頻道")
     async def setwelcome(self, ctx: commands.Context, channel: discord.TextChannel):
         """設定歡迎頻道"""
-        db.execute(
-            "INSERT OR IGNORE INTO guild_settings (guild_id) VALUES (?)",
-            (ctx.guild.id,)
-        )
-        db.execute(
-            "UPDATE guild_settings SET welcome_channel_id = ? WHERE guild_id = ?",
-            (channel.id, ctx.guild.id)
-        )
+        db.set_guild_settings(ctx.guild.id, welcome_channel_id=channel.id)
         
         embed = create_embed(
             title=f"{Emojis.SUCCESS} 歡迎頻道已設定",
@@ -107,14 +94,7 @@ class Welcome(commands.Cog):
     @app_commands.describe(channel="離開訊息頻道")
     async def setfarewell(self, ctx: commands.Context, channel: discord.TextChannel):
         """設定離開頻道"""
-        db.execute(
-            "INSERT OR IGNORE INTO guild_settings (guild_id) VALUES (?)",
-            (ctx.guild.id,)
-        )
-        db.execute(
-            "UPDATE guild_settings SET farewell_channel_id = ? WHERE guild_id = ?",
-            (channel.id, ctx.guild.id)
-        )
+        db.set_guild_settings(ctx.guild.id, farewell_channel_id=channel.id)
         
         embed = create_embed(
             title=f"{Emojis.SUCCESS} 離開頻道已設定",
@@ -130,14 +110,7 @@ class Welcome(commands.Cog):
     @app_commands.describe(role="要自動給予的角色")
     async def setautorole(self, ctx: commands.Context, role: discord.Role):
         """設定自動角色"""
-        db.execute(
-            "INSERT OR IGNORE INTO guild_settings (guild_id) VALUES (?)",
-            (ctx.guild.id,)
-        )
-        db.execute(
-            "UPDATE guild_settings SET autorole_id = ? WHERE guild_id = ?",
-            (role.id, ctx.guild.id)
-        )
+        db.set_guild_settings(ctx.guild.id, autorole_id=role.id)
         
         embed = create_embed(
             title=f"{Emojis.SUCCESS} 自動角色已設定",

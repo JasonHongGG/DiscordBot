@@ -26,14 +26,11 @@ class ReactionRoles(commands.Cog):
             return
         
         # 查詢是否為反應角色
-        result = db.execute(
-            "SELECT role_id FROM reaction_roles WHERE guild_id = ? AND message_id = ? AND emoji = ?",
-            (payload.guild_id, payload.message_id, str(payload.emoji))
-        )
+        result = db.get_reaction_role(payload.guild_id, payload.message_id, str(payload.emoji))
         
         if result:
             guild = self.bot.get_guild(payload.guild_id)
-            role = guild.get_role(result[0]['role_id'])
+            role = guild.get_role(result['role_id'])
             
             if role:
                 try:
@@ -46,14 +43,11 @@ class ReactionRoles(commands.Cog):
     async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
         """處理反應移除"""
         # 查詢是否為反應角色
-        result = db.execute(
-            "SELECT role_id FROM reaction_roles WHERE guild_id = ? AND message_id = ? AND emoji = ?",
-            (payload.guild_id, payload.message_id, str(payload.emoji))
-        )
+        result = db.get_reaction_role(payload.guild_id, payload.message_id, str(payload.emoji))
         
         if result:
             guild = self.bot.get_guild(payload.guild_id)
-            role = guild.get_role(result[0]['role_id'])
+            role = guild.get_role(result['role_id'])
             member = guild.get_member(payload.user_id)
             
             if role and member:
@@ -104,10 +98,7 @@ class ReactionRoles(commands.Cog):
             )
         
         # 儲存到資料庫
-        db.execute(
-            "INSERT INTO reaction_roles (guild_id, message_id, role_id, emoji) VALUES (?, ?, ?, ?)",
-            (ctx.guild.id, message_id, role.id, str(emoji))
-        )
+        db.add_reaction_role(ctx.guild.id, message_id, role.id, str(emoji))
         
         embed = create_embed(
             title=f"{Emojis.SUCCESS} 反應角色已設定",
@@ -137,10 +128,7 @@ class ReactionRoles(commands.Cog):
                 )
             )
         
-        result = db.execute(
-            "DELETE FROM reaction_roles WHERE guild_id = ? AND message_id = ? AND emoji = ?",
-            (ctx.guild.id, message_id, str(emoji))
-        )
+        db.remove_reaction_role(ctx.guild.id, message_id, str(emoji))
         
         embed = create_embed(
             title=f"{Emojis.SUCCESS} 反應角色已移除",
@@ -154,10 +142,7 @@ class ReactionRoles(commands.Cog):
     @commands.hybrid_command(name="listreactionroles", description="列出所有反應角色")
     async def listreactionroles(self, ctx: commands.Context):
         """列出反應角色"""
-        result = db.execute(
-            "SELECT * FROM reaction_roles WHERE guild_id = ?",
-            (ctx.guild.id,)
-        )
+        result = db.get_all_reaction_roles(ctx.guild.id)
         
         if not result:
             return await ctx.send(

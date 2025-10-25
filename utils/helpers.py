@@ -4,9 +4,24 @@
 import discord
 from discord.ext import commands
 from typing import Optional, Union
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import re
 from config import Colors
+
+
+def make_naive(dt: datetime) -> datetime:
+    """
+    移除 datetime 物件的時區資訊，使其成為 naive datetime
+    
+    Args:
+        dt: datetime 物件
+    
+    Returns:
+        沒有時區資訊的 datetime 物件
+    """
+    if dt.tzinfo is not None:
+        return dt.replace(tzinfo=None)
+    return dt
 
 
 def create_embed(
@@ -36,7 +51,7 @@ def create_embed(
         title=title,
         description=description,
         color=color,
-        timestamp=datetime.now(datetime.UTC)
+        timestamp=datetime.now()
     )
     
     if footer:

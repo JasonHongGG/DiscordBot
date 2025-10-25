@@ -23,14 +23,12 @@ class Logging(commands.Cog):
     
     def get_log_channel(self, guild_id: int):
         """獲取日誌頻道"""
-        result = db.execute(
-            "SELECT log_channel_id FROM guild_settings WHERE guild_id = ?",
-            (guild_id,)
-        )
+        settings = db.get_guild_settings(guild_id)
+        log_channel_id = settings.get('log_channel_id')
         
-        if result and result[0]['log_channel_id']:
+        if log_channel_id:
             guild = self.bot.get_guild(guild_id)
-            return guild.get_channel(result[0]['log_channel_id'])
+            return guild.get_channel(log_channel_id)
         return None
     
     # ==================== 訊息刪除 ====================
@@ -240,14 +238,7 @@ class Logging(commands.Cog):
     @app_commands.describe(channel="日誌頻道")
     async def setlog(self, ctx: commands.Context, channel: discord.TextChannel):
         """設定日誌頻道"""
-        db.execute(
-            "INSERT OR IGNORE INTO guild_settings (guild_id) VALUES (?)",
-            (ctx.guild.id,)
-        )
-        db.execute(
-            "UPDATE guild_settings SET log_channel_id = ? WHERE guild_id = ?",
-            (channel.id, ctx.guild.id)
-        )
+        db.set_guild_settings(ctx.guild.id, log_channel_id=channel.id)
         
         embed = create_embed(
             title=f"{Emojis.SUCCESS} 日誌頻道已設定",

@@ -4,12 +4,12 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import random
 import logging
 
 from utils.database import db
-from utils.helpers import create_embed, format_number
+from utils.helpers import create_embed, format_number, make_naive
 from config import Colors, Emojis, DAILY_REWARD, WORK_COOLDOWN, WORK_REWARD_MIN, WORK_REWARD_MAX
 
 logger = logging.getLogger(__name__)
@@ -21,29 +21,13 @@ class Economy(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
     
-    def get_user_balance(self, user_id: int, guild_id: int):
-        """獲取用戶餘額"""
-        result = db.execute(
-            "SELECT * FROM economy WHERE user_id = ? AND guild_id = ?",
-            (user_id, guild_id)
-        )
-        
-        if not result:
-            db.execute(
-                "INSERT INTO economy (user_id, guild_id, balance, bank) VALUES (?, ?, 0, 0)",
-                (user_id, guild_id)
-            )
-            return {'balance': 0, 'bank': 0}
-        
-        return result[0]
-    
     # ==================== 查看餘額 ====================
     @commands.hybrid_command(name="balance", aliases=["bal"], description="查看餘額")
     @app_commands.describe(member="要查看的成員")
     async def balance(self, ctx: commands.Context, member: discord.Member = None):
         """查看餘額"""
         member = member or ctx.author
-        data = self.get_user_balance(member.id, ctx.guild.id)
+        data = db.get_economy_data(ctx.guild.id, member.id)
         
         total = data['balance'] + data['bank']
         
@@ -63,12 +47,12 @@ class Economy(commands.Cog):
     @commands.hybrid_command(name="daily", description="每日簽到領取獎勵")
     async def daily(self, ctx: commands.Context):
         """每日簽到"""
-        data = self.get_user_balance(ctx.author.id, ctx.guild.id)
+        data = db.get_economy_data(ctx.guild.id, ctx.author.id)
         
-        now = datetime.now(datetime.UTC)
+        now = datetime.now()
         
         if data['last_daily']:
-            last_daily = datetime.fromisoformat(data['last_daily'])
+            last_daily = make_naive(datetime.fromisoformat(data['last_daily']))
             time_diff = now - last_daily
             
             if time_diff < timedelta(days=1):
@@ -86,9 +70,11 @@ class Economy(commands.Cog):
         
         # 發放獎勵
         new_balance = data['balance'] + DAILY_REWARD
-        db.execute(
-            "UPDATE economy SET balance = ?, last_daily = ? WHERE user_id = ? AND guild_id = ?",
-            (new_balance, now.isoformat(), ctx.author.id, ctx.guild.id)
+        db.set_economy_data(
+            ctx.guild.id,
+            ctx.author.id,
+            balance=new_balance,
+            last_daily=now.isoformat()
         )
         
         embed = create_embed(
@@ -103,12 +89,12 @@ class Economy(commands.Cog):
     @commands.hybrid_command(name="work", description="工作賺取金幣")
     async def work(self, ctx: commands.Context):
         """工作"""
-        data = self.get_user_balance(ctx.author.id, ctx.guild.id)
+        data = db.get_economy_data(ctx.guild.id, ctx.author.id)
         
-        now = datetime.now(datetime.UTC)
+        now = datetime.now()
         
         if data['last_work']:
-            last_work = datetime.fromisoformat(data['last_work'])
+            last_work = make_naive(datetime.fromisoformat(data['last_work']))
             time_diff = now - last_work
             
             if time_diff.total_seconds() < WORK_COOLDOWN:
@@ -132,9 +118,11 @@ class Economy(commands.Cog):
         reward = random.randint(WORK_REWARD_MIN, WORK_REWARD_MAX)
         
         new_balance = data['balance'] + reward
-        db.execute(
-            "UPDATE economy SET balance = ?, last_work = ? WHERE user_id = ? AND guild_id = ?",
-            (new_balance, now.isoformat(), ctx.author.id, ctx.guild.id)
+        db.set_economy_data(
+            ctx.guild.id,
+            ctx.author.id,
+            balance=new_balance,
+            last_work=now.isoformat()
         )
         
         embed = create_embed(
@@ -150,7 +138,7 @@ class Economy(commands.Cog):
     @app_commands.describe(amount="存款金額 (all 為全部)")
     async def deposit(self, ctx: commands.Context, amount: str):
         """存款"""
-        data = self.get_user_balance(ctx.author.id, ctx.guild.id)
+        data = db.get_economy_data(ctx.guild.id, ctx.author.id)
         
         if amount.lower() == "all":
             amount = data['balance']
@@ -187,9 +175,11 @@ class Economy(commands.Cog):
         new_balance = data['balance'] - amount
         new_bank = data['bank'] + amount
         
-        db.execute(
-            "UPDATE economy SET balance = ?, bank = ? WHERE user_id = ? AND guild_id = ?",
-            (new_balance, new_bank, ctx.author.id, ctx.guild.id)
+        db.set_economy_data(
+            ctx.guild.id,
+            ctx.author.id,
+            balance=new_balance,
+            bank=new_bank
         )
         
         embed = create_embed(
@@ -204,7 +194,7 @@ class Economy(commands.Cog):
     @app_commands.describe(amount="提款金額 (all 為全部)")
     async def withdraw(self, ctx: commands.Context, amount: str):
         """提款"""
-        data = self.get_user_balance(ctx.author.id, ctx.guild.id)
+        data = db.get_economy_data(ctx.guild.id, ctx.author.id)
         
         if amount.lower() == "all":
             amount = data['bank']
@@ -241,9 +231,11 @@ class Economy(commands.Cog):
         new_balance = data['balance'] + amount
         new_bank = data['bank'] - amount
         
-        db.execute(
-            "UPDATE economy SET balance = ?, bank = ? WHERE user_id = ? AND guild_id = ?",
-            (new_balance, new_bank, ctx.author.id, ctx.guild.id)
+        db.set_economy_data(
+            ctx.guild.id,
+            ctx.author.id,
+            balance=new_balance,
+            bank=new_bank
         )
         
         embed = create_embed(
@@ -285,7 +277,7 @@ class Economy(commands.Cog):
                 )
             )
         
-        author_data = self.get_user_balance(ctx.author.id, ctx.guild.id)
+        author_data = db.get_economy_data(ctx.guild.id, ctx.author.id)
         
         if amount > author_data['balance']:
             return await ctx.send(
@@ -296,19 +288,21 @@ class Economy(commands.Cog):
                 )
             )
         
-        member_data = self.get_user_balance(member.id, ctx.guild.id)
+        member_data = db.get_economy_data(ctx.guild.id, member.id)
         
         # 轉帳
         new_author_balance = author_data['balance'] - amount
         new_member_balance = member_data['balance'] + amount
         
-        db.execute(
-            "UPDATE economy SET balance = ? WHERE user_id = ? AND guild_id = ?",
-            (new_author_balance, ctx.author.id, ctx.guild.id)
+        db.set_economy_data(
+            ctx.guild.id,
+            ctx.author.id,
+            balance=new_author_balance
         )
-        db.execute(
-            "UPDATE economy SET balance = ? WHERE user_id = ? AND guild_id = ?",
-            (new_member_balance, member.id, ctx.guild.id)
+        db.set_economy_data(
+            ctx.guild.id,
+            member.id,
+            balance=new_member_balance
         )
         
         embed = create_embed(
@@ -323,10 +317,7 @@ class Economy(commands.Cog):
     @commands.hybrid_command(name="richest", description="查看財富排行榜")
     async def richest(self, ctx: commands.Context):
         """財富排行榜"""
-        top_users = db.execute(
-            "SELECT user_id, balance, bank FROM economy WHERE guild_id = ? ORDER BY (balance + bank) DESC LIMIT 10",
-            (ctx.guild.id,)
-        )
+        top_users = db.get_top_economy(ctx.guild.id, limit=10)
         
         if not top_users:
             return await ctx.send(

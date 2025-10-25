@@ -4,11 +4,11 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 
 from utils.database import db
-from utils.helpers import create_embed, calculate_level_xp, get_level_from_xp, format_number
+from utils.helpers import create_embed, calculate_level_xp, get_level_from_xp, format_number, make_naive
 from config import Colors, Emojis, XP_PER_MESSAGE, XP_COOLDOWN
 
 logger = logging.getLogger(__name__)
@@ -28,17 +28,13 @@ class Leveling(commands.Cog):
             return
         
         # 檢查冷卻時間
-        user_data = db.execute(
-            "SELECT * FROM levels WHERE user_id = ? AND guild_id = ?",
-            (message.author.id, message.guild.id)
-        )
+        user_data = db.get_level_data(message.guild.id, message.author.id)
         
-        now = datetime.now(datetime.UTC)
+        now = datetime.now()
         
         if user_data:
-            user_data = user_data[0]
             if user_data['last_xp_time']:
-                last_xp_time = datetime.fromisoformat(user_data['last_xp_time'])
+                last_xp_time = make_naive(datetime.fromisoformat(user_data['last_xp_time']))
                 if (now - last_xp_time).total_seconds() < XP_COOLDOWN:
                     return
             
@@ -47,20 +43,20 @@ class Leveling(commands.Cog):
             new_level = get_level_from_xp(new_xp)
             old_level = user_data['level']
             
-            db.execute(
-                "UPDATE levels SET xp = ?, level = ?, last_xp_time = ? WHERE user_id = ? AND guild_id = ?",
-                (new_xp, new_level, now.isoformat(), message.author.id, message.guild.id)
+            db.set_level_data(
+                message.guild.id,
+                message.author.id,
+                new_xp,
+                new_level,
+                now.isoformat()
             )
             
             # 檢查是否升級
             if new_level > old_level:
                 # 檢查是否啟用升級訊息
-                settings = db.execute(
-                    "SELECT level_up_message FROM guild_settings WHERE guild_id = ?",
-                    (message.guild.id,)
-                )
+                settings = db.get_guild_settings(message.guild.id)
                 
-                if not settings or settings[0]['level_up_message']:
+                if settings.get('level_up_message', True):
                     embed = create_embed(
                         title=f"{Emojis.LEVEL_UP} 恭喜升級!",
                         description=f"{message.author.mention} 升到了 **等級 {new_level}**!",
@@ -71,9 +67,12 @@ class Leveling(commands.Cog):
                 logger.info(f"{message.author} 升級到等級 {new_level}")
         else:
             # 創建新記錄
-            db.execute(
-                "INSERT INTO levels (user_id, guild_id, xp, level, last_xp_time) VALUES (?, ?, ?, ?, ?)",
-                (message.author.id, message.guild.id, XP_PER_MESSAGE, 0, now.isoformat())
+            db.set_level_data(
+                message.guild.id,
+                message.author.id,
+                XP_PER_MESSAGE,
+                0,
+                now.isoformat()
             )
     
     # ==================== 查看等級 ====================
@@ -83,10 +82,7 @@ class Leveling(commands.Cog):
         """查看等級"""
         member = member or ctx.author
         
-        user_data = db.execute(
-            "SELECT * FROM levels WHERE user_id = ? AND guild_id = ?",
-            (member.id, ctx.guild.id)
-        )
+        user_data = db.get_level_data(ctx.guild.id, member.id)
         
         if not user_data:
             return await ctx.send(
@@ -97,7 +93,6 @@ class Leveling(commands.Cog):
                 )
             )
         
-        user_data = user_data[0]
         current_xp = user_data['xp']
         current_level = user_data['level']
         
@@ -108,10 +103,7 @@ class Leveling(commands.Cog):
         xp_needed = xp_for_next - xp_for_current
         
         # 計算排名
-        all_users = db.execute(
-            "SELECT user_id, xp FROM levels WHERE guild_id = ? ORDER BY xp DESC",
-            (ctx.guild.id,)
-        )
+        all_users = db.get_top_levels(ctx.guild.id, limit=999999)
         rank = next((i for i, u in enumerate(all_users, 1) if u['user_id'] == member.id), 0)
         
         embed = create_embed(
@@ -135,10 +127,7 @@ class Leveling(commands.Cog):
     @commands.hybrid_command(name="leaderboard", description="查看等級排行榜")
     async def leaderboard(self, ctx: commands.Context):
         """等級排行榜"""
-        top_users = db.execute(
-            "SELECT user_id, xp, level FROM levels WHERE guild_id = ? ORDER BY xp DESC LIMIT 10",
-            (ctx.guild.id,)
-        )
+        top_users = db.get_top_levels(ctx.guild.id, limit=10)
         
         if not top_users:
             return await ctx.send(
@@ -182,10 +171,7 @@ class Leveling(commands.Cog):
         )
         
         if confirmed:
-            db.execute(
-                "DELETE FROM levels WHERE guild_id = ?",
-                (ctx.guild.id,)
-            )
+            db.delete_all_levels(ctx.guild.id)
             embed = create_embed(
                 title=f"{Emojis.SUCCESS} 等級已重置",
                 description="已清除伺服器所有等級資料",

@@ -6,7 +6,7 @@ import discord
 from discord.ext import commands
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 # 導入配置和工具
 from config import DISCORD_TOKEN, BOT_PREFIX, INITIAL_COGS, Colors
@@ -32,7 +32,7 @@ class DiscordBot(commands.Bot):
             case_insensitive=True
         )
         
-        self.start_time = datetime.now(datetime.UTC)
+        self.start_time = datetime.now()
     
     async def setup_hook(self):
         """機器人啟動時的設置"""

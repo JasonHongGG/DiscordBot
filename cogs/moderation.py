@@ -6,7 +6,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 
 from utils.database import db
@@ -158,17 +158,10 @@ class Moderation(commands.Cog):
     async def warn(self, ctx: commands.Context, member: discord.Member, *, reason: str = "無原因"):
         """警告成員"""
         # 記錄警告
-        db.execute(
-            "INSERT INTO warnings (guild_id, user_id, moderator_id, reason) VALUES (?, ?, ?, ?)",
-            (ctx.guild.id, member.id, ctx.author.id, reason)
-        )
+        db.add_warning(ctx.guild.id, member.id, ctx.author.id, reason)
         
         # 查詢警告次數
-        warnings = db.execute(
-            "SELECT COUNT(*) as count FROM warnings WHERE guild_id = ? AND user_id = ?",
-            (ctx.guild.id, member.id)
-        )
-        warning_count = warnings[0]['count'] if warnings else 0
+        warning_count = db.count_warnings(ctx.guild.id, member.id)
         
         embed = create_embed(
             title=f"{Emojis.WARNING} 成員已被警告",
@@ -209,10 +202,7 @@ class Moderation(commands.Cog):
     @app_commands.describe(member="要查看的成員")
     async def warnings(self, ctx: commands.Context, member: discord.Member):
         """查看警告記錄"""
-        warnings = db.execute(
-            "SELECT * FROM warnings WHERE guild_id = ? AND user_id = ? ORDER BY timestamp DESC",
-            (ctx.guild.id, member.id)
-        )
+        warnings = db.get_warnings(ctx.guild.id, member.id)
         
         if not warnings:
             return await ctx.send(
@@ -229,7 +219,7 @@ class Moderation(commands.Cog):
             color=Colors.WARNING
         )
         
-        for i, warning in enumerate(warnings[:10], 1):  # 只顯示最近 10 次
+        for i, warning in enumerate(sorted(warnings, key=lambda x: x['timestamp'], reverse=True)[:10], 1):  # 只顯示最近 10 次
             moderator = ctx.guild.get_member(warning['moderator_id'])
             mod_name = moderator.display_name if moderator else "未知"
             timestamp = datetime.fromisoformat(warning['timestamp']).strftime("%Y-%m-%d %H:%M")
@@ -248,10 +238,7 @@ class Moderation(commands.Cog):
     @app_commands.describe(member="要清除警告的成員")
     async def clearwarnings(self, ctx: commands.Context, member: discord.Member):
         """清除警告"""
-        db.execute(
-            "DELETE FROM warnings WHERE guild_id = ? AND user_id = ?",
-            (ctx.guild.id, member.id)
-        )
+        db.clear_warnings(ctx.guild.id, member.id)
         
         embed = create_embed(
             title=f"{Emojis.SUCCESS} 警告已清除",
@@ -289,14 +276,11 @@ class Moderation(commands.Cog):
             )
         
         try:
-            until = datetime.now(datetime.UTC) + time_delta
+            until = datetime.now() + time_delta
             await member.timeout(until, reason=f"{ctx.author}: {reason}")
             
             # 記錄靜音
-            db.execute(
-                "INSERT OR REPLACE INTO mutes (user_id, guild_id, muted_until, reason) VALUES (?, ?, ?, ?)",
-                (member.id, ctx.guild.id, until.isoformat(), reason)
-            )
+            db.set_mute(member.id, ctx.guild.id, until.isoformat(), reason)
             
             embed = create_embed(
                 title=f"{Emojis.SUCCESS} 成員已靜音",
@@ -322,10 +306,7 @@ class Moderation(commands.Cog):
         """解除靜音"""
         try:
             await member.timeout(None)
-            db.execute(
-                "DELETE FROM mutes WHERE user_id = ? AND guild_id = ?",
-                (member.id, ctx.guild.id)
-            )
+            db.remove_mute(ctx.guild.id, member.id)
             
             embed = create_embed(
                 title=f"{Emojis.SUCCESS} 已解除靜音",

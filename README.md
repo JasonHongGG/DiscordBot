@@ -255,28 +255,9 @@ async def setup(bot):
 - 刪除 `data/bot_database.db` 讓機器人重新創建
 - 確認 `data/` 目錄存在且有寫入權限
 
-## 📝 注意事項
-
-1. **音樂功能**: 需要額外安裝 `yt-dlp` 和 `PyNaCl`，這裡只提供基礎框架
-2. **安全性**: 不要將 `.env` 檔案上傳到公開儲存庫
-3. **權限**: 確保機器人有足夠的權限執行指令
-4. **速率限制**: Discord 有 API 速率限制，避免短時間內大量操作
-
-## 🤝 貢獻
-
-歡迎提交 Issue 和 Pull Request！
-
-## 📄 授權
-
-此專案為開源專案，可自由使用和修改。
-
 ## 🔗 相關連結
 
 - [Discord.py 文檔](https://discordpy.readthedocs.io/)
 - [Discord Developer Portal](https://discord.com/developers/applications)
 - [Discord API 文檔](https://discord.com/developers/docs/)
 
-## ✨ 作者
-
-機器人由 GitHub Copilot 協助開發
-# DiscordBot

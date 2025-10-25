@@ -7,7 +7,7 @@ from discord.ext import commands
 from discord import app_commands
 import re
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 
 from utils.database import db
@@ -28,11 +28,8 @@ class AutoMod(commands.Cog):
     
     def is_automod_enabled(self, guild_id: int) -> bool:
         """檢查是否啟用自動管理"""
-        result = db.execute(
-            "SELECT automod_enabled FROM guild_settings WHERE guild_id = ?",
-            (guild_id,)
-        )
-        return result and result[0]['automod_enabled']
+        settings = db.get_guild_settings(guild_id)
+        return settings.get('automod_enabled', False)
     
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -63,9 +60,9 @@ class AutoMod(commands.Cog):
     async def check_spam(self, message: discord.Message):
         """檢測垃圾訊息（短時間內大量訊息）"""
         user_id = message.author.id
-        now = datetime.now(datetime.UTC)
+        now = datetime.now()
         
-        # 清除舊記錄
+        # 初始化用戶記錄
         self.spam_tracker[user_id] = [
             msg_time for msg_time in self.spam_tracker[user_id]
             if (now - msg_time).total_seconds() < 5
@@ -165,14 +162,7 @@ class AutoMod(commands.Cog):
     @app_commands.describe(enabled="是否啟用")
     async def automod(self, ctx: commands.Context, enabled: bool):
         """切換自動管理"""
-        db.execute(
-            "INSERT OR IGNORE INTO guild_settings (guild_id) VALUES (?)",
-            (ctx.guild.id,)
-        )
-        db.execute(
-            "UPDATE guild_settings SET automod_enabled = ? WHERE guild_id = ?",
-            (enabled, ctx.guild.id)
-        )
+        db.set_guild_settings(ctx.guild.id, automod_enabled=enabled)
         
         status = "啟用" if enabled else "停用"
         embed = create_embed(
