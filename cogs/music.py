@@ -336,7 +336,7 @@ class Music(commands.Cog):
             if player.paused:
                 # Attempt to resume playback
                 try:
-                    await player.set_pause(False)  # Unpause the player
+                    await player.pause(False)  # Unpause the player
                     embed = create_embed(
                         title=f"{Emojis.SUCCESS} 繼續播放",
                         description="音樂已繼續",
