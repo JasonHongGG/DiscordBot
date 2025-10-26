@@ -137,24 +137,17 @@ class Music(commands.Cog):
         url = getattr(track, 'uri', None) or ''
         duration = getattr(track, 'length', None)  # 毫秒
         
-        # 取得縮圖 URL（優先使用 artwork，YouTube 會提供）
+        # 取得縮圖 URL（固定使用 YouTube maxresdefault，非 YouTube 則不顯示）
         artwork = None
-        if hasattr(track, 'artwork') and track.artwork:
-            artwork = track.artwork
-        elif hasattr(track, 'thumbnail') and track.thumbnail:
-            artwork = track.thumbnail
-        # YouTube 預設縮圖 fallback
-        if not artwork and url and 'youtube.com' in url or 'youtu.be' in url:
+        if url and ('youtube.com' in url or 'youtu.be' in url):
             try:
-                # 從 YouTube URL 提取 video ID 並建構縮圖 URL
                 video_id = None
                 if 'v=' in url:
                     video_id = url.split('v=')[1].split('&')[0]
                 elif 'youtu.be/' in url:
                     video_id = url.split('youtu.be/')[1].split('?')[0]
                 if video_id:
-                    # 使用 sddefault.jpg (640x480, 16:9, 保證無黑邊)
-                    artwork = f"https://img.youtube.com/vi/{video_id}/sddefault.jpg"
+                    artwork = f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
             except Exception:
                 pass
 
@@ -283,12 +276,26 @@ class Music(commands.Cog):
                     title = getattr(track, 'title', '未知標題')
                     url = getattr(track, 'uri', None) or getattr(track, 'url', None) or ''
                     duration = getattr(track, 'length', None)
+                    # 與 nowplaying 一致的縮圖邏輯：固定使用 YouTube maxresdefault，非 YouTube 不顯示
+                    artwork = None
+                    if url and ('youtube.com' in url or 'youtu.be' in url):
+                        try:
+                            video_id = None
+                            if 'v=' in url:
+                                video_id = url.split('v=')[1].split('&')[0]
+                            elif 'youtu.be/' in url:
+                                video_id = url.split('youtu.be/')[1].split('?')[0]
+                            if video_id:
+                                artwork = f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
+                        except Exception:
+                            pass
+
                     embed = standard_embed(
                         title=f"{Emojis.SUCCESS} 已加入佇列",
                         description=f"**[{title}]({url})**" if url else f"**{title}**",
                         color=Colors.SUCCESS,
                         requester=ctx.author,
-                        thumbnail=getattr(track, 'artwork', None) or getattr(track, 'thumbnail', None) or None,
+                        image=artwork or None,
                     )
                     embed.add_field(name="📝 佇列位置", value=f"第 {len(queue.tracks)} 首", inline=True)
                     if duration:
