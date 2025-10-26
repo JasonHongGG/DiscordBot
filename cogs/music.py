@@ -237,21 +237,28 @@ class Music(commands.Cog):
         try:
             # 使用 Wavelink 搜尋
             if query.startswith(("http://", "https://")) and "list=" in query:
-                # 處理播放清單
-                node = wavelink.NodePool.get_node()
-                results = await node.get_tracks(query)
+                # 處理播放清單（使用通用搜尋，兼容目前的 Wavelink 版本）
+                results = await wavelink.Playable.search(query)
 
-                if not results or not results.tracks:
+                # results 可能是可索引序列，也可能帶有 tracks 屬性（播放清單）
+                playlist_tracks = list(getattr(results, "tracks", results))  # type: ignore[arg-type]
+
+                if not playlist_tracks:
                     raise ValueError("找不到對應的播放清單")
 
-                for track in results.tracks:
+                for track in playlist_tracks:
                     queue.add(track)
 
-                await processing.edit(embed=create_embed(
-                    title=f"{Emojis.SUCCESS} 已加入佇列",
-                    description=f"已將播放清單中的 {len(results.tracks)} 首歌曲加入佇列",
-                    color=Colors.SUCCESS
-                ))
+                # 若目前未播放，立刻開始
+                if not player.playing and not player.paused:
+                    await processing.delete()
+                    await self._start_playback(ctx)
+                else:
+                    await processing.edit(embed=create_embed(
+                        title=f"{Emojis.SUCCESS} 已加入佇列",
+                        description=f"已將播放清單中的 {len(playlist_tracks)} 首歌曲加入佇列",
+                        color=Colors.SUCCESS
+                    ))
             else:
                 # 單曲搜尋
                 results = await wavelink.Playable.search(query)
