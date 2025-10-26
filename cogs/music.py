@@ -236,39 +236,47 @@ class Music(commands.Cog):
 
         try:
             # 使用 Wavelink 搜尋
-            if query.startswith(("http://", "https://")):
-                results = await wavelink.Playable.search(query)
-            else:
-                results = await wavelink.Playable.search(f"ytsearch:{query}")
+            if query.startswith(("http://", "https://")) and "list=" in query:
+                # 處理播放清單
+                results = await wavelink.YouTubePlaylist.search(query)
+                if not results:
+                    raise ValueError("找不到對應的播放清單")
 
-            if not results:
-                return await processing.edit(embed=create_embed(
-                    title=f"{Emojis.ERROR} 錯誤",
-                    description="找不到對應的歌曲",
-                    color=Colors.ERROR
-                ))
+                for track in results.tracks:
+                    queue.add(track)
 
-            track = results[0]
-            queue.add(track)
-
-            if not player.playing and not player.paused:
-                await processing.delete()
-                await self._start_playback(ctx)
-            else:
-                title = getattr(track, 'title', '未知標題')
-                url = getattr(track, 'uri', None) or getattr(track, 'url', None) or ''
-                duration = getattr(track, 'length', None)
-                embed = create_embed(
+                await processing.edit(embed=create_embed(
                     title=f"{Emojis.SUCCESS} 已加入佇列",
-                    description=f"**[{title}]({url})**" if url else f"**{title}**",
+                    description=f"已將播放清單中的 {len(results.tracks)} 首歌曲加入佇列",
                     color=Colors.SUCCESS
-                )
-                embed.add_field(name="📝 佇列位置", value=f"第 {len(queue.tracks)} 首", inline=True)
-                if duration:
-                    total_seconds = int(duration // 1000)
-                    m, s = divmod(total_seconds, 60)
-                    embed.add_field(name="⏱️ 時長", value=f"{int(m)}:{int(s):02d}", inline=True)
-                await processing.edit(embed=embed)
+                ))
+            else:
+                # 單曲搜尋
+                results = await wavelink.Playable.search(query)
+                if not results:
+                    raise ValueError("找不到對應的歌曲")
+
+                track = results[0]
+                queue.add(track)
+
+                if not player.playing and not player.paused:
+                    await processing.delete()
+                    await self._start_playback(ctx)
+                else:
+                    title = getattr(track, 'title', '未知標題')
+                    url = getattr(track, 'uri', None) or getattr(track, 'url', None) or ''
+                    duration = getattr(track, 'length', None)
+                    embed = create_embed(
+                        title=f"{Emojis.SUCCESS} 已加入佇列",
+                        description=f"**[{title}]({url})**" if url else f"**{title}**",
+                        color=Colors.SUCCESS
+                    )
+                    embed.add_field(name="📝 佇列位置", value=f"第 {len(queue.tracks)} 首", inline=True)
+                    if duration:
+                        total_seconds = int(duration // 1000)
+                        m, s = divmod(total_seconds, 60)
+                        embed.add_field(name="⏱️ 時長", value=f"{int(m)}:{int(s):02d}", inline=True)
+                    await processing.edit(embed=embed)
         except Exception as e:
             logger.error(f"搜尋/加入佇列錯誤: {e}", exc_info=True)
             await processing.edit(embed=create_embed(
