@@ -322,19 +322,40 @@ class Music(commands.Cog):
     @commands.hybrid_command(name="resume", description="繼續播放")
     async def resume(self, ctx: commands.Context):
         """繼續播放"""
-        if ctx.voice_client and isinstance(ctx.voice_client, wavelink.Player) and ctx.voice_client.paused:
-            await ctx.voice_client.resume()
-            embed = create_embed(
-                title=f"{Emojis.SUCCESS} 繼續播放",
-                description="音樂已繼續",
-                color=Colors.SUCCESS
-            )
-            await ctx.send(embed=embed)
+        if ctx.voice_client and isinstance(ctx.voice_client, wavelink.Player):
+            player: wavelink.Player = ctx.voice_client
+
+            if player.paused:
+                # Attempt to resume playback
+                try:
+                    await player.set_pause(False)  # Unpause the player
+                    embed = create_embed(
+                        title=f"{Emojis.SUCCESS} 繼續播放",
+                        description="音樂已繼續",
+                        color=Colors.SUCCESS
+                    )
+                    await ctx.send(embed=embed)
+                except Exception as e:
+                    await ctx.send(
+                        embed=create_embed(
+                            title=f"{Emojis.ERROR} 錯誤",
+                            description=f"無法繼續播放: {str(e)}",
+                            color=Colors.ERROR
+                        )
+                    )
+            else:
+                await ctx.send(
+                    embed=create_embed(
+                        title=f"{Emojis.INFO} 提示",
+                        description="音樂未處於暫停狀態",
+                        color=Colors.INFO
+                    )
+                )
         else:
             await ctx.send(
                 embed=create_embed(
                     title=f"{Emojis.ERROR} 錯誤",
-                    description="音樂沒有暫停",
+                    description="目前沒有播放任何音樂",
                     color=Colors.ERROR
                 )
             )
