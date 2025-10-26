@@ -12,6 +12,8 @@ from discord import app_commands
 from discord.ext import commands
 import wavelink
 
+from utils.ui import standard_embed, format_duration, progress_bar, build_queue_page_embed
+
 from utils.helpers import create_embed
 from config import Colors, Emojis, LAVALINK_HOST, LAVALINK_PORT, LAVALINK_PASSWORD
 
@@ -156,20 +158,26 @@ class Music(commands.Cog):
             except Exception:
                 pass
 
-        embed = create_embed(
+        # 進階資訊：進度條（若可用）
+        current_pos = 0
+        try:
+            current_pos = int(getattr(ctx.voice_client, "position", 0) or 0)  # type: ignore
+        except Exception:
+            pass
+
+        desc = f"**[{title}]({url})**" if url else f"**{title}**"
+        if duration and duration > 0:
+            bar = progress_bar(current_pos, duration, width=24)
+            desc += f"\n{bar}\n`{format_duration(current_pos)} / {format_duration(duration)}`"
+
+        embed = standard_embed(
             title=f"{Emojis.MUSIC} 正在播放",
-            description=f"**[{title}]({url})**" if url else f"**{title}**",
-            color=Colors.SUCCESS
+            description=desc,
+            color=Colors.SUCCESS,
+            requester=getattr(ctx, "author", None),
+            image=artwork or None,
         )
-        if duration:
-            total_seconds = int(duration // 1000)
-            m, s = divmod(total_seconds, 60)
-            embed.add_field(name="⏱️ 時長", value=f"{int(m)}:{int(s):02d}", inline=True)
         embed.add_field(name="🔊 音量", value=f"{int(queue.volume)}%", inline=True)
-        
-        if artwork:
-            embed.set_image(url=artwork)
-        
         await ctx.send(embed=embed)
     
     # ==================== 加入語音頻道 ====================
@@ -275,16 +283,16 @@ class Music(commands.Cog):
                     title = getattr(track, 'title', '未知標題')
                     url = getattr(track, 'uri', None) or getattr(track, 'url', None) or ''
                     duration = getattr(track, 'length', None)
-                    embed = create_embed(
+                    embed = standard_embed(
                         title=f"{Emojis.SUCCESS} 已加入佇列",
                         description=f"**[{title}]({url})**" if url else f"**{title}**",
-                        color=Colors.SUCCESS
+                        color=Colors.SUCCESS,
+                        requester=ctx.author,
+                        thumbnail=getattr(track, 'artwork', None) or getattr(track, 'thumbnail', None) or None,
                     )
                     embed.add_field(name="📝 佇列位置", value=f"第 {len(queue.tracks)} 首", inline=True)
                     if duration:
-                        total_seconds = int(duration // 1000)
-                        m, s = divmod(total_seconds, 60)
-                        embed.add_field(name="⏱️ 時長", value=f"{int(m)}:{int(s):02d}", inline=True)
+                        embed.add_field(name="⏱️ 時長", value=f"{format_duration(duration)}", inline=True)
                     await processing.edit(embed=embed)
         except Exception as e:
             logger.error(f"搜尋/加入佇列錯誤: {e}", exc_info=True)
@@ -443,45 +451,74 @@ class Music(commands.Cog):
                 )
             )
         
-        embed = create_embed(
-            title=f"{Emojis.MUSIC} 播放佇列",
-            color=Colors.INFO
-        )
-        
-        # 當前播放
+        # 現代化佇列：分頁顯示
+        per_page = 10
+        total = len(queue.tracks)
+
+        # 先構建「正在播放」區塊的 embed（如有）
+        header_lines = []
         if queue.current:
             cur_title = getattr(queue.current, 'title', '未知標題')
             cur_url = getattr(queue.current, 'uri', None) or getattr(queue.current, 'url', None) or ''
-            value = f"[{cur_title}]({cur_url})" if cur_url else cur_title
-            embed.add_field(name="🎵 正在播放", value=value, inline=False)
-        
-        # 佇列中的歌曲
-        if queue.tracks:
-            queue_list = []
-            for i, track in enumerate(queue.tracks[:10], 1):  # 只顯示前 10 首
-                t_title = getattr(track, 'title', '未知標題')
-                t_url = getattr(track, 'uri', None) or getattr(track, 'url', None) or ''
-                t_len = getattr(track, 'length', None)
-                duration = ""
-                if t_len:
-                    total_seconds = int(t_len // 1000)
-                    m, s = divmod(total_seconds, 60)
-                    duration = f" `[{int(m)}:{int(s):02d}]`"
-                if t_url:
-                    queue_list.append(f"`{i}.` [{t_title}]({t_url}){duration}")
-                else:
-                    queue_list.append(f"`{i}.` {t_title}{duration}")
-            
-            embed.add_field(
-                name=f"📝 接下來 ({len(queue.tracks)} 首)",
-                value="\n".join(queue_list),
-                inline=False
+            cur_len = getattr(queue.current, 'length', None)
+            header_lines.append(f"🎵 正在播放：{f'[{cur_title}]({cur_url})' if cur_url else cur_title} `[{format_duration(cur_len)}]`")
+
+        if total == 0:
+            embed = standard_embed(
+                title=f"{Emojis.MUSIC} 播放佇列",
+                description=("\n".join(header_lines) if header_lines else "目前沒有任何歌曲在佇列中"),
+                color=Colors.INFO,
+                requester=ctx.author,
             )
-            
-            if len(queue.tracks) > 10:
-                embed.set_footer(text=f"還有 {len(queue.tracks) - 10} 首歌曲...")
-        
-        await ctx.send(embed=embed)
+            return await ctx.send(embed=embed)
+
+        # 頁面生成器
+        def page_embed(page: int) -> discord.Embed:
+            e = build_queue_page_embed(
+                title=f"{Emojis.MUSIC} 播放佇列",
+                tracks=queue.tracks,
+                page=page,
+                per_page=per_page,
+                total_count=total,
+                color=Colors.INFO,
+            )
+            if header_lines:
+                e.add_field(name="當前", value="\n".join(header_lines), inline=False)
+            return e
+
+        class QueuePaginator(discord.ui.View):
+            def __init__(self, *, author: discord.abc.User, start_page: int = 1):
+                super().__init__(timeout=60)
+                self.page = start_page
+                self.author_id = author.id
+                self.max_page = ((total - 1) // per_page) + 1
+                self._sync_buttons()
+
+            def _sync_buttons(self):
+                for item in self.children:
+                    if isinstance(item, discord.ui.Button):
+                        if item.custom_id == "prev":
+                            item.disabled = self.page <= 1
+                        elif item.custom_id == "next":
+                            item.disabled = self.page >= self.max_page
+
+            async def interaction_check(self, interaction: discord.Interaction) -> bool:
+                return interaction.user and interaction.user.id == self.author_id
+
+            @discord.ui.button(emoji="◀️", style=discord.ButtonStyle.secondary, custom_id="prev")
+            async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):  # type: ignore[override]
+                self.page = max(1, self.page - 1)
+                self._sync_buttons()
+                await interaction.response.edit_message(embed=page_embed(self.page), view=self)
+
+            @discord.ui.button(emoji="▶️", style=discord.ButtonStyle.secondary, custom_id="next")
+            async def next(self, interaction: discord.Interaction, button: discord.ui.Button):  # type: ignore[override]
+                self.page = min(self.max_page, self.page + 1)
+                self._sync_buttons()
+                await interaction.response.edit_message(embed=page_embed(self.page), view=self)
+
+        view = QueuePaginator(author=ctx.author, start_page=1)
+        await ctx.send(embed=page_embed(1), view=view)
     
     # ==================== 正在播放 ====================
     @commands.hybrid_command(name="nowplaying", aliases=["np"], description="查看正在播放的歌曲")
