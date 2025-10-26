@@ -238,8 +238,10 @@ class Music(commands.Cog):
             # 使用 Wavelink 搜尋
             if query.startswith(("http://", "https://")) and "list=" in query:
                 # 處理播放清單
-                results = await wavelink.YouTubePlaylist.search(query)
-                if not results:
+                node = wavelink.NodePool.get_node()
+                results = await node.get_tracks(query)
+
+                if not results or not results.tracks:
                     raise ValueError("找不到對應的播放清單")
 
                 for track in results.tracks:
