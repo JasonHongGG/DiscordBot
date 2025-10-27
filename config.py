@@ -20,7 +20,7 @@ LAVALINK_PASSWORD = os.getenv("LAVALINK_PASSWORD", "123")
 
 # API Server 設定
 API_SERVER_HOST = os.getenv("API_SERVER_HOST", "0.0.0.0")
-API_SERVER_PORT = int(os.getenv("API_SERVER_PORT", "6000"))
+API_SERVER_PORT = int(os.getenv("API_SERVER_PORT", "5001"))
 ALARM_CHANNEL_ID = int(os.getenv("ALARM_CHANNEL_ID", "1431725636359164025"))  # 警報頻道 ID
 
 # 顏色設定（用於 Embed）
