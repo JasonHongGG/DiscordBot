@@ -39,3 +39,6 @@ Thumbs.db
 *.bak
 *.cache
 *.md
+
+
+/lavalink/logs/*
