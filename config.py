@@ -19,9 +19,14 @@ LAVALINK_PORT = int(os.getenv("LAVALINK_PORT", "2444"))
 LAVALINK_PASSWORD = os.getenv("LAVALINK_PASSWORD", "123")
 
 # API Server 設定
-API_SERVER_HOST = os.getenv("API_SERVER_HOST", "0.0.0.0")
-API_SERVER_PORT = int(os.getenv("API_SERVER_PORT", "5001"))
-ALARM_CHANNEL_ID = int(os.getenv("ALARM_CHANNEL_ID", "1431725636359164025"))  # 警報頻道 ID
+API_SERVER_HOST = os.getenv("API_SERVER_HOST")
+API_SERVER_PORT = int(os.getenv("API_SERVER_PORT"))
+ALARM_CHANNEL_ID = int(os.getenv("ALARM_CHANNEL_ID"))  # 警報頻道 ID
+
+# n8n 設定
+N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
+ASSISTANT_CHANNEL_ID = int(os.getenv("ASSISTANT_CHANNEL_ID"))  # 助理頻道 ID
+
 
 # 顏色設定（用於 Embed）
 class Colors:
@@ -82,4 +87,5 @@ INITIAL_COGS = [
     "cogs.automod",        # 自動管理
     "cogs.logging",        # 日誌記錄
     "cogs.api_server",     # API 伺服器
+    "cogs.n8n",            # n8n 整合
 ]
