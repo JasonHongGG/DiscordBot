@@ -33,9 +33,9 @@ class N8N(commands.Cog):
         requests.post(N8N_RAG_WEBHOOK_URL, json=payload)
         print(f"[n8n]✅ 已轉發訊息: {message} {N8N_RAG_WEBHOOK_URL}")
 
-    @commands.hybrid_command(name="rag", description="新增 RAG 資訊")
+    @commands.hybrid_command(name="rag", description="RAG 聊天")
     @commands.has_permissions(administrator=True)
-    async def raginfo(self, ctx: commands.Context, message: str):
+    async def rag(self, ctx: commands.Context, message: str):
         payload = {
             "chatInput": message
         }
