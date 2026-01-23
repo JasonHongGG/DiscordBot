@@ -1,0 +1,31 @@
+services:
+  lavalink:
+    image: eclipse-temurin:17-jre-jammy
+    working_dir: /opt/Lavalink
+    command: ["java", "-jar", "Lavalink.jar"]
+    volumes:
+      - ./lavalink:/opt/Lavalink
+    ports:
+      - "2444:2444"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/2444'"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  bot:
+    build: .
+    depends_on:
+      lavalink:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      LAVALINK_HOST: lavalink
+      LAVALINK_PORT: "2444"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped
